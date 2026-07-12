@@ -412,6 +412,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
   .stat-grid { grid-template-columns: 1fr 1fr; }
 }
 </style>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body>
 
@@ -689,11 +690,16 @@ tr:hover td { background: rgba(255,255,255,.02); }
       <div style="display:flex;gap:8px;margin-bottom:6px">
         <input type="text" id="discogs-query" placeholder="ชื่อศิลปิน/อัลบั้ม หรือ barcode"
           oninput="updateDiscogsMode()" onkeydown="if(event.key==='Enter')doDiscogsSearch()" style="flex:1">
+        <button class="btn btn-secondary btn-sm" type="button" onclick="toggleBarcodeScanner()" id="scan-btn" title="สแกน barcode ด้วยกล้อง">📷</button>
         <button class="btn btn-primary btn-sm" type="button" onclick="doDiscogsSearch()">ค้นหา</button>
       </div>
       <div id="discogs-mode-hint" style="font-size:11px;color:var(--subtext);margin-bottom:12px;min-height:16px"></div>
+      <div id="barcode-scanner-wrap" style="display:none;margin-bottom:12px">
+        <div id="barcode-reader" style="width:100%;border-radius:8px;overflow:hidden"></div>
+        <div style="text-align:center;font-size:12px;color:var(--subtext);margin-top:8px">เล็ง barcode ให้อยู่ในกรอบ · <a href="#" onclick="stopBarcodeScanner();return false" style="color:var(--accent)">ปิดกล้อง</a></div>
+      </div>
       <div id="discogs-results" style="max-height:400px;overflow-y:auto">
-        <div style="padding:30px;text-align:center;color:var(--subtext)">พิมพ์ชื่อ หรือสแกน/ใส่ barcode เพื่อค้นหา</div>
+        <div style="padding:30px;text-align:center;color:var(--subtext)">พิมพ์ชื่อ · สแกน 📷 · หรือใส่ barcode เพื่อค้นหา</div>
       </div>
     </div>
   </div>
@@ -1297,7 +1303,10 @@ function deleteUserConfirm(id) {
 // ── Helpers ────────────────────────────────────────────────────────────────
 function show(id, d='block') { document.getElementById(id).style.display = d; }
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function closeModal(id) {
+  if (id === 'discogs-modal' && _scannerRunning) stopBarcodeScanner();
+  document.getElementById(id).classList.remove('open');
+}
 function getVal(id) { return document.getElementById(id).value; }
 function setVal(id, v) { const el=document.getElementById(id); if(el) el.value = v||''; }
 function esc(s)  { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -1436,6 +1445,76 @@ function updateDiscogsMode() {
   hint.innerHTML = isBarcode
     ? `🔢 โหมด Barcode — ค้นด้วยเลข <strong>${esc(digitsOnly)}</strong>`
     : `🔤 โหมดชื่อ — ค้นด้วยข้อความ`;
+}
+
+// ── Barcode Scanner (กล้องมือถือ) ─────────────────────────────────────────────
+let _barcodeScanner = null;
+let _scannerRunning = false;
+
+function toggleBarcodeScanner() {
+  if (_scannerRunning) stopBarcodeScanner();
+  else                 startBarcodeScanner();
+}
+
+function startBarcodeScanner() {
+  if (typeof Html5Qrcode === 'undefined') {
+    toast('โหลดตัวสแกนไม่สำเร็จ ลองรีเฟรชหน้า', 'error');
+    return;
+  }
+  const wrap = document.getElementById('barcode-scanner-wrap');
+  wrap.style.display = 'block';
+  document.getElementById('scan-btn').textContent = '✕';
+
+  _barcodeScanner = new Html5Qrcode('barcode-reader', {
+    formatsToSupport: [
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.CODE_128,
+    ],
+  });
+
+  _barcodeScanner.start(
+    { facingMode: 'environment' },   // กล้องหลัง
+    { fps: 10, qrbox: { width: 260, height: 130 } },  // กรอบแนวนอนเหมาะกับ barcode
+    (decodedText) => {
+      // สแกนเจอ → ใส่เลขในช่อง + ค้นทันที
+      const digits = decodedText.replace(/[\s-]/g, '');
+      document.getElementById('discogs-query').value = digits;
+      updateDiscogsMode();
+      if (navigator.vibrate) navigator.vibrate(120);  // สั่นบอกว่าเจอ
+      toast('สแกนเจอ: ' + digits, 'success');
+      stopBarcodeScanner();
+      doDiscogsSearch();
+    },
+    () => {}  // ไม่เจอในเฟรมนี้ — เงียบไว้
+  ).then(() => {
+    _scannerRunning = true;
+  }).catch(err => {
+    wrap.style.display = 'none';
+    document.getElementById('scan-btn').textContent = '📷';
+    const msg = String(err || '');
+    if (msg.includes('NotAllowed') || msg.includes('Permission')) {
+      toast('ไม่ได้รับอนุญาตให้ใช้กล้อง กรุณาอนุญาตในเบราว์เซอร์', 'error');
+    } else if (msg.includes('NotFound')) {
+      toast('ไม่พบกล้องบนอุปกรณ์นี้', 'error');
+    } else {
+      toast('เปิดกล้องไม่สำเร็จ: ' + msg, 'error');
+    }
+  });
+}
+
+function stopBarcodeScanner() {
+  if (_barcodeScanner && _scannerRunning) {
+    _barcodeScanner.stop().then(() => {
+      _barcodeScanner.clear();
+      _barcodeScanner = null;
+      _scannerRunning = false;
+    }).catch(() => { _scannerRunning = false; });
+  }
+  document.getElementById('barcode-scanner-wrap').style.display = 'none';
+  document.getElementById('scan-btn').textContent = '📷';
 }
 
 function doDiscogsSearch() {
