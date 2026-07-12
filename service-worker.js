@@ -3,7 +3,7 @@
  *  ทำให้ติดตั้งเป็น PWA ได้ + cache หน้าเว็บสำหรับเปิดเร็ว/ออฟไลน์
  * ═══════════════════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'vee-discography-v1';
+const CACHE_NAME = 'vee-discography-v2';
 
 // ไฟล์ที่ cache ไว้ (app shell)
 const APP_SHELL = [
@@ -46,11 +46,27 @@ self.addEventListener('fetch', event => {
   // เฉพาะ GET เท่านั้นที่ cache
   if (event.request.method !== 'GET') return;
 
+  // ── index.html / หน้าหลัก → network-first (โค้ด UI อัปเดตทันทีเสมอ) ──
+  const isHtmlPage = event.request.mode === 'navigate'
+    || url.endsWith('/') || url.endsWith('index.html');
+  if (isHtmlPage) {
+    event.respondWith(
+      fetch(event.request)
+        .then(res => {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          return res;
+        })
+        .catch(() => caches.match(event.request))  // ออฟไลน์ค่อยใช้ cache
+    );
+    return;
+  }
+
+  // ── ไฟล์อื่น (icon/manifest) → cache-first (เปิดเร็ว) ──
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
       return fetch(event.request).then(res => {
-        // cache ไฟล์ static ที่โหลดสำเร็จ
         if (res && res.status === 200 && res.type === 'basic') {
           const clone = res.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
