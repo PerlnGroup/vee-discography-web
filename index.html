@@ -413,6 +413,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
 }
 </style>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
 
@@ -483,6 +484,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
       <button class="nav-item"        onclick="navigate('add')"      ><span class="icon">➕</span> เพิ่มแผ่น</button>
       <div class="nav-label" style="margin-top:8px">Admin</div>
       <button class="nav-item" id="nav-users" onclick="navigate('users')" style="display:none"><span class="icon">👤</span> จัดการ Users</button>
+      <button class="nav-item" id="nav-settings" onclick="navigate('settings')" style="display:none"><span class="icon">⚙️</span> ตั้งค่าระบบ</button>
     </div>
 
     <div class="sidebar-footer">
@@ -541,6 +543,9 @@ tr:hover td { background: rgba(255,255,255,.02); }
           <option>VG++</option><option>VG+</option><option>VG</option>
           <option>VG-</option><option>G</option><option>Poor</option>
         </select>
+        <select id="filter-category" onchange="loadCatalog(1)">
+          <option value="">ทุกหมวด</option><option>ไทย</option><option>สากล</option>
+        </select>
         <select id="filter-genre" onchange="loadCatalog(1)"><option value="">ทุกแนวเพลง</option></select>
         <button class="btn btn-ghost btn-sm" onclick="clearFilters()">✕ ล้าง</button>
       </div>
@@ -575,6 +580,8 @@ tr:hover td { background: rgba(255,255,255,.02); }
           <div class="form-grid">
             <div class="form-group"><label class="form-label">ประเภท <span class="req">*</span></label>
               <select id="f-type" required><option value="">— เลือก —</option><option>Vinyl</option><option>CD</option></select></div>
+            <div class="form-group"><label class="form-label">หมวดเพลง</label>
+              <select id="f-category"><option value="">— เลือก —</option><option>ไทย</option><option>สากล</option></select></div>
             <div class="form-group"><label class="form-label">สภาพ <span class="req">*</span></label>
               <select id="f-condition" required><option value="">— เลือก —</option><option>SS</option><option>M</option><option>NM</option><option>VG++</option><option>VG+</option><option>VG</option><option>VG-</option><option>G</option><option>Poor</option></select></div>
             <div class="form-group"><label class="form-label">ศิลปิน <span class="req">*</span></label><input type="text" id="f-artist" required placeholder="เช่น Atom"></div>
@@ -643,6 +650,31 @@ tr:hover td { background: rgba(255,255,255,.02); }
       </div>
     </div>
 
+    <!-- ══════ SETTINGS ══════ -->
+    <div id="page-settings" class="page" style="display:none">
+      <div class="top-bar">
+        <div><div class="page-title">ตั้งค่าระบบ</div><div class="page-subtitle">Discogs API และการเชื่อมต่อภายนอก</div></div>
+      </div>
+      <div class="card" style="max-width:560px">
+        <div class="card-header">🔍 Discogs API Token</div>
+        <div class="card-body">
+          <p style="font-size:13px;color:var(--subtext);margin-bottom:14px;line-height:1.6">
+            ใช้สำหรับค้นหาข้อมูลแผ่นจาก Discogs สร้าง token ได้ที่
+            <a href="https://www.discogs.com/settings/developers" target="_blank" style="color:var(--accent)">discogs.com/settings/developers</a>
+            → Generate new token
+          </p>
+          <div id="discogs-token-status" style="font-size:13px;margin-bottom:12px;padding:8px 12px;border-radius:6px;background:var(--surface2)">
+            <span style="color:var(--subtext)">กำลังตรวจสอบ…</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Discogs Token</label>
+            <input type="password" id="settings-discogs-token" placeholder="วาง token ที่นี่">
+          </div>
+          <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="saveDiscogsToken()">💾 บันทึก & ทดสอบ</button>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -691,6 +723,8 @@ tr:hover td { background: rgba(255,255,255,.02); }
         <input type="text" id="discogs-query" placeholder="ชื่อศิลปิน/อัลบั้ม หรือ barcode"
           oninput="updateDiscogsMode()" onkeydown="if(event.key==='Enter')doDiscogsSearch()" style="flex:1">
         <button class="btn btn-secondary btn-sm" type="button" onclick="toggleBarcodeScanner()" id="scan-btn" title="สแกน barcode ด้วยกล้อง">📷</button>
+        <button class="btn btn-secondary btn-sm" type="button" onclick="document.getElementById('ocr-file-input').click()" id="ocr-btn" title="อ่านตัวหนังสือจากรูปปก">🔤</button>
+        <input type="file" id="ocr-file-input" accept="image/*" style="display:none" onchange="handleOcrImage(this)">
         <button class="btn btn-primary btn-sm" type="button" onclick="doDiscogsSearch()">ค้นหา</button>
       </div>
       <div id="discogs-mode-hint" style="font-size:11px;color:var(--subtext);margin-bottom:12px;min-height:16px"></div>
@@ -754,6 +788,7 @@ function _makeRunnerInstance() {
     'getRecords','getGenres','getRecordById','addRecord','updateRecord','deleteRecord',
     'getDashboardStats','getUsers','addUser','updateUser','deleteUser','resetPassword',
     'uploadImageToDrive','searchDiscogs','getDiscogsRelease','searchCoverArt',
+    'setDiscogsTokenFromWeb','hasDiscogsToken',
   ];
   actions.forEach(action => {
     inst[action] = function(...params) {
@@ -839,6 +874,7 @@ function onLoggedIn(user) {
 
   if (user.role === 'Admin') {
     document.getElementById('nav-users').style.display = '';
+    document.getElementById('nav-settings').style.display = '';
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
   } else {
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
@@ -902,6 +938,7 @@ function doLogout() {
 // ── Navigation ─────────────────────────────────────────────────────────────
 function navigate(page) {
   if (page === 'users' && S.user?.role !== 'Admin') return;
+  if (page === 'settings' && S.user?.role !== 'Admin') return;
   S.curPage = page;
   document.querySelectorAll('.page').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -913,6 +950,7 @@ function navigate(page) {
   if (page === 'dashboard') loadDashboard();
   if (page === 'catalog')   loadCatalog(S.catPage || 1);
   if (page === 'users')     loadUsers();
+  if (page === 'settings')  loadSettings();
   if (page === 'add') {
     // รีเซ็ตฟอร์มเฉพาะเมื่อเป็นการ "เพิ่มแผ่นใหม่" เท่านั้น
     // ถ้า S.editId มีค่าอยู่แล้ว = มาจาก editRecord() — ไม่ต้องรีเซ็ต
@@ -956,6 +994,8 @@ function renderDashboard(s) {
     <div class="stat-card"><div class="stat-value">${fmt(s.totalRecords)}</div><div class="stat-label">แผ่นทั้งหมด</div><div class="stat-icon">💿</div></div>
     <div class="stat-card blue"><div class="stat-value">${fmt(s.totalVinyl)}</div><div class="stat-label">Vinyl</div><div class="stat-icon">🎵</div></div>
     <div class="stat-card blue"><div class="stat-value">${fmt(s.totalCD)}</div><div class="stat-label">CD</div><div class="stat-icon">📀</div></div>
+    <div class="stat-card"><div class="stat-value">${fmt(s.totalThai)}</div><div class="stat-label">เพลงไทย</div><div class="stat-icon">🇹🇭</div></div>
+    <div class="stat-card"><div class="stat-value">${fmt(s.totalInter)}</div><div class="stat-label">เพลงสากล</div><div class="stat-icon">🌍</div></div>
     <div class="stat-card yellow"><div class="stat-value">฿${fmtM(s.totalPrice)}</div><div class="stat-label">ราคาซื้อรวม</div><div class="stat-icon">💰</div></div>
     <div class="stat-card"><div class="stat-value">฿${fmtM(s.totalResale)}</div><div class="stat-label">ราคารีเซลรวม</div><div class="stat-icon">📈</div></div>
     <div class="stat-card ${pl?'green':''}"><div class="stat-value" style="color:var(--${pl?'green':'accent'})">${pl?'+':''}฿${fmtM(s.profitLoss)}</div><div class="stat-label">กำไร/ขาดทุน</div><div class="stat-icon">${pl?'📈':'📉'}</div></div>
@@ -1030,6 +1070,7 @@ function loadCatalog(page) {
       type: document.getElementById('filter-type').value,
       condition: document.getElementById('filter-condition').value,
       genre: document.getElementById('filter-genre').value,
+      category: document.getElementById('filter-category').value,
       page: S.catPage, limit: 50,
     }, S.token);
 }
@@ -1118,7 +1159,7 @@ function renderPagination(page, total, containerId) {
 }
 
 function clearFilters() {
-  ['search-input','filter-type','filter-condition','filter-genre'].forEach(id => document.getElementById(id).value='');
+  ['search-input','filter-type','filter-condition','filter-genre','filter-category'].forEach(id => document.getElementById(id).value='');
   loadCatalog(1);
 }
 
@@ -1167,7 +1208,7 @@ function editRecord(r) {
   document.getElementById('submit-btn').textContent = '💾 อัพเดต';
 
   // 4. เติมข้อมูลทุกฟิลด์
-  ['type','condition','artist','album','year','genre','label','pressNum','price','resale','dateBuy','note']
+  ['type','condition','artist','album','year','genre','label','pressNum','price','resale','dateBuy','note','category']
     .forEach(k => setVal('f-' + k, r[k]));
 
   // 5. จัดการรูปภาพแยก
@@ -1195,6 +1236,7 @@ function submitRecord(e) {
     album:getVal('f-album'), year:getVal('f-year'), genre:getVal('f-genre'),
     label:getVal('f-label'), pressNum:getVal('f-pressNum'), price:getVal('f-price'),
     resale:getVal('f-resale'), dateBuy:getVal('f-dateBuy'), image:getVal('f-image'), note:getVal('f-note'),
+    category:getVal('f-category'),
   };
   const ok  = r => {
     btn.disabled = false;
@@ -1447,6 +1489,42 @@ function updateDiscogsMode() {
     : `🔤 โหมดชื่อ — ค้นด้วยข้อความ`;
 }
 
+// ── Settings (Discogs token) ─────────────────────────────────────────────────
+function loadSettings() {
+  const status = document.getElementById('discogs-token-status');
+  status.innerHTML = '<span style="color:var(--subtext)">กำลังตรวจสอบ…</span>';
+  document.getElementById('settings-discogs-token').value = '';
+  google.script.run
+    .withSuccessHandler(res => {
+      if (res && res.hasToken) {
+        status.innerHTML = '<span style="color:var(--green)">✅ ตั้งค่า token แล้ว — พร้อมใช้งาน</span>';
+      } else {
+        status.innerHTML = '<span style="color:var(--yellow)">⚠️ ยังไม่ได้ตั้ง token — ค้นหา Discogs จะใช้ไม่ได้</span>';
+      }
+    })
+    .withFailureHandler(err => {
+      status.innerHTML = `<span style="color:var(--accent)">❌ ${esc((err&&err.message)||'ตรวจสอบไม่ได้')}</span>`;
+    })
+    .hasDiscogsToken(S.token);
+}
+
+function saveDiscogsToken() {
+  const tok = document.getElementById('settings-discogs-token').value.trim();
+  if (!tok) { toast('กรุณากรอก token', 'error'); return; }
+  const status = document.getElementById('discogs-token-status');
+  status.innerHTML = '<span style="color:var(--subtext)">กำลังบันทึกและทดสอบ…</span>';
+  google.script.run
+    .withSuccessHandler(res => {
+      status.innerHTML = '<span style="color:var(--green)">✅ ' + esc(res.message) + '</span>';
+      document.getElementById('settings-discogs-token').value = '';
+      toast('บันทึก token สำเร็จ', 'success');
+    })
+    .withFailureHandler(err => {
+      status.innerHTML = `<span style="color:var(--accent)">❌ ${esc((err&&err.message)||'บันทึกไม่สำเร็จ')}</span>`;
+    })
+    .setDiscogsTokenFromWeb(tok, S.token);
+}
+
 // ── Barcode Scanner (กล้องมือถือ) ─────────────────────────────────────────────
 let _barcodeScanner = null;
 let _scannerRunning = false;
@@ -1515,6 +1593,61 @@ function stopBarcodeScanner() {
   }
   document.getElementById('barcode-scanner-wrap').style.display = 'none';
   document.getElementById('scan-btn').textContent = '📷';
+}
+
+// ── OCR อ่านตัวหนังสือจากรูปปก (Tesseract.js) ────────────────────────────────
+async function handleOcrImage(input) {
+  const file = input.files[0];
+  input.value = '';  // reset เพื่อเลือกไฟล์เดิมซ้ำได้
+  if (!file) return;
+  if (typeof Tesseract === 'undefined') {
+    toast('ตัวอ่านข้อความยังโหลดไม่เสร็จ ลองใหม่อีกครั้ง', 'error');
+    return;
+  }
+
+  const box = document.getElementById('discogs-results');
+  box.innerHTML = `<div style="padding:30px;text-align:center">
+    <div class="spinner spinner-dark"></div>
+    <div id="ocr-progress" style="margin-top:10px;font-size:12px;color:var(--subtext)">กำลังอ่านตัวหนังสือจากรูป… 0%</div>
+  </div>`;
+
+  try {
+    const { data } = await Tesseract.recognize(file, 'eng+tha', {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          const pct = Math.round(m.progress * 100);
+          const el = document.getElementById('ocr-progress');
+          if (el) el.textContent = `กำลังอ่านตัวหนังสือจากรูป… ${pct}%`;
+        }
+      },
+    });
+
+    // ทำความสะอาดข้อความ: เอาบรรทัดที่มีตัวอักษร, ตัดอักขระแปลก
+    let text = (data.text || '')
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l.length >= 2)
+      .join(' ')
+      .replace(/[^\p{L}\p{N}\s&'-]/gu, ' ')  // เก็บตัวอักษร/เลข/ช่องว่าง
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!text) {
+      box.innerHTML = '<div style="padding:30px;text-align:center;color:var(--subtext)">อ่านตัวหนังสือไม่ได้ ลองรูปที่ชัดกว่า หรือพิมพ์เอง</div>';
+      return;
+    }
+
+    // จำกัดความยาว (คำค้นยาวเกินไปจะค้นไม่เจอ)
+    if (text.length > 60) text = text.substring(0, 60);
+
+    document.getElementById('discogs-query').value = text;
+    updateDiscogsMode();
+    toast('อ่านได้: ' + text, 'success');
+    doDiscogsSearch();
+
+  } catch (err) {
+    box.innerHTML = `<div style="padding:30px;text-align:center;color:var(--accent)">❌ อ่านรูปไม่สำเร็จ: ${esc(String(err.message||err))}</div>`;
+  }
 }
 
 function doDiscogsSearch() {
