@@ -1709,8 +1709,15 @@ function dismissInstall() {
 
 // iOS Safari: ไม่มี beforeinstallprompt → แสดงคำแนะนำแทน
 window.addEventListener('load', () => {
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const isSafari = /safari/i.test(navigator.userAgent) && !/crios|fxios|chrome/i.test(navigator.userAgent);
+  // ตรวจ iOS/iPadOS — iPad รุ่นใหม่ (iPadOS 13+) รายงานตัวเป็น "Macintosh"
+  // จึงต้องเช็ค touch support เพิ่ม เพื่อแยก iPad ออกจาก Mac จริง
+  const ua = navigator.userAgent;
+  const isIOSDevice = /iphone|ipad|ipod/i.test(ua);
+  const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;  // iPad ที่ปลอมเป็น Mac
+  const isIOS = isIOSDevice || isIPadOS;
+  // บน iOS ทุกเบราว์เซอร์ใช้ WebKit → "เพิ่มหน้าจอโฮม" ได้เฉพาะ Safari
+  const isSafari = /safari/i.test(ua) && !/crios|fxios|edgios/i.test(ua);
+
   if (isIOS && isSafari && !isStandalone_() && !sessionStorage.getItem('vee_install_dismissed')) {
     setTimeout(() => {
       let banner = document.getElementById('install-banner');
