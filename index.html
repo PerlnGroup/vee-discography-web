@@ -478,7 +478,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
     <div class="nav-section">
       <div class="nav-label">เมนูหลัก</div>
       <button class="nav-item active" onclick="navigate('dashboard')"><span class="icon">🏠</span> Dashboard</button>
-      <button class="nav-item"        onclick="navigate('catalog')"  ><span class="icon">📀</span> Catalog</button>
+      <button class="nav-item"        onclick="S.catPage=1;navigate('catalog')"  ><span class="icon">📀</span> Catalog</button>
       <button class="nav-item"        onclick="navigate('add')"      ><span class="icon">➕</span> เพิ่มแผ่น</button>
       <div class="nav-label" style="margin-top:8px">Admin</div>
       <button class="nav-item" id="nav-users" onclick="navigate('users')" style="display:none"><span class="icon">👤</span> จัดการ Users</button>
@@ -544,6 +544,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
         <button class="btn btn-ghost btn-sm" onclick="clearFilters()">✕ ล้าง</button>
       </div>
       <div class="card" id="catalog-list-view" style="display:none">
+        <div class="pagination" id="pagination-top"></div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>#</th><th>ประเภท</th><th>ศิลปิน</th><th>อัลบั้ม</th><th>สภาพ</th><th>หมายเลข</th><th>ราคาซื้อ</th><th>ราคารีเซล</th><th>แนวเพลง</th><th>หมายเหตุ</th><th></th></tr></thead>
@@ -553,6 +554,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
         <div class="pagination" id="pagination"></div>
       </div>
       <div id="catalog-grid-view">
+        <div class="pagination" id="pagination-grid-top"></div>
         <div class="record-grid" id="catalog-grid"></div>
         <div class="pagination" id="pagination-grid"></div>
       </div>
@@ -724,7 +726,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
 // ══════════════════════════════════════════════════════════════════
 //  BACKEND CONFIG  —  ใส่ URL /exec ของ Apps Script Web App ที่นี่
 // ══════════════════════════════════════════════════════════════════
-const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxPitYZNHANU8PRgxJbufSzw0MvBCOHCXRF9dnh8bHPM2OndJOwG91KsFoYFFfPFfWxFg/exec';  // ← แก้เป็น URL /exec ของคุณ
+const BACKEND_URL = 'https://script.google.com/macros/s/XXXXXXXXXXXXXXXXX/exec';  // ← แก้เป็น URL /exec ของคุณ
 
 // ── google.script.run shim ────────────────────────────────────────
 // เลียนแบบ google.script.run ให้ยิงผ่าน fetch() ไป doPost() แทน
@@ -903,7 +905,7 @@ function navigate(page) {
   if (navItems[navMap[page]]) navItems[navMap[page]].classList.add('active');
   document.getElementById('sidebar').classList.remove('open');
   if (page === 'dashboard') loadDashboard();
-  if (page === 'catalog')   loadCatalog(1);
+  if (page === 'catalog')   loadCatalog(S.catPage || 1);
   if (page === 'users')     loadUsers();
   if (page === 'add') {
     // รีเซ็ตฟอร์มเฉพาะเมื่อเป็นการ "เพิ่มแผ่นใหม่" เท่านั้น
@@ -1059,6 +1061,7 @@ function renderCatalogList(data) {
       </tr>`).join('')
     : '<tr><td colspan="11" style="text-align:center;padding:30px;color:var(--subtext)">ไม่พบข้อมูล</td></tr>';
   renderPagination(data.page, data.totalPages, 'pagination');
+  renderPagination(data.page, data.totalPages, 'pagination-top');
 }
 
 function renderCatalogGrid(data) {
@@ -1086,6 +1089,7 @@ function renderCatalogGrid(data) {
       }).join('')
     : '<div style="padding:40px;text-align:center;color:var(--subtext);grid-column:1/-1">ไม่พบข้อมูล</div>';
   renderPagination(data.page, data.totalPages, 'pagination-grid');
+  renderPagination(data.page, data.totalPages, 'pagination-grid-top');
 }
 
 function renderPagination(page, total, containerId) {
