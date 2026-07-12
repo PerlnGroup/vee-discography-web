@@ -3,7 +3,7 @@
  *  ทำให้ติดตั้งเป็น PWA ได้ + cache หน้าเว็บสำหรับเปิดเร็ว/ออฟไลน์
  * ═══════════════════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'vee-discography-v2';
+const CACHE_NAME = 'vee-discography-v3';
 
 // ไฟล์ที่ cache ไว้ (app shell)
 const APP_SHELL = [
